@@ -580,7 +580,9 @@ func (pk *Packet) PingreqEncode(buf *bytes.Buffer) error {
 
 // PingreqDecode decodes a Pingreq packet.
 func (pk *Packet) PingreqDecode(buf []byte) error {
-	pk.Payload = buf
+	if pk.FixedHeader.Remaining != 0 {
+		pk.Payload = buf
+	}
 	return nil
 }
 
