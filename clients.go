@@ -170,6 +170,7 @@ func newClient(c net.Conn, o *ops) *Client {
 			cancelOpen:    cancel,
 			Keepalive:     defaultKeepalive,
 			outbound:      make(chan *packets.Packet, o.options.Capabilities.MaximumClientWritesPending),
+			Selector:      Selector{CanSend: true},
 		},
 		Properties: ClientProperties{
 			ProtocolVersion: defaultClientProtocolVersion, // default protocol version
