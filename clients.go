@@ -150,6 +150,11 @@ type ClientState struct {
 	outboundQty     int32                // number of messages currently in the outbound queue
 	Keepalive       uint16               // the number of seconds the connection can wait
 	ServerKeepalive bool                 // keepalive was set by the server
+	Selector        Selector
+}
+
+type Selector struct {
+	CanSend bool `json:"canSend"`
 }
 
 // newClient returns a new instance of Client. This is almost exclusively used by Server
@@ -464,6 +469,7 @@ func (cl *Client) ReadPacket(fh *packets.FixedHeader) (pk packets.Packet, err er
 	case packets.Unsuback:
 		err = pk.UnsubackDecode(px)
 	case packets.Pingreq:
+		err = pk.PingreqDecode(px)
 	case packets.Pingresp:
 	case packets.Auth:
 		err = pk.AuthDecode(px)
