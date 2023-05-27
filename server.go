@@ -636,11 +636,14 @@ func (s *Server) processConnect(cl *Client, _ packets.Packet) error {
 
 // processPingreq processes a Pingreq packet.
 func (s *Server) processPingreq(cl *Client, pk packets.Packet) error {
-	if err := json.Unmarshal(pk.Payload, &cl.State.Selector); err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(cl.State.Selector.CanSend)
+	if pk.Payload != nil {
+		if err := json.Unmarshal(pk.Payload, &cl.State.Selector); err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println(cl.State.Selector.CanSend)
+		}
 	}
+
 	return cl.WritePacket(packets.Packet{
 		FixedHeader: packets.FixedHeader{
 			Type: packets.Pingresp, // [MQTT-3.12.4-1]
