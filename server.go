@@ -631,8 +631,6 @@ func (s *Server) processPingreq(cl *Client, pk packets.Packet) error {
 	if pk.Payload != nil {
 		if err := json.Unmarshal(pk.Payload, &cl.State.Selector); err != nil {
 			fmt.Println(err)
-		} else {
-			fmt.Println(cl.State.Selector.CanSend)
 		}
 	}
 
