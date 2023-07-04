@@ -6,7 +6,6 @@
 package mqtt
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
