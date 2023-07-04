@@ -64,7 +64,7 @@ var validPacketProperties = map[byte]map[byte]byte{
 	PropTopicAlias:             {Publish: 1},
 	PropMaximumQos:             {Connack: 1},
 	PropRetainAvailable:        {Connack: 1},
-	PropUser:                   {Connect: 1, Connack: 1, Publish: 1, Puback: 1, Pubrec: 1, Pubrel: 1, Pubcomp: 1, Subscribe: 1, Suback: 1, Unsubscribe: 1, Unsuback: 1, Disconnect: 1, Auth: 1, WillProperties: 1},
+	PropUser:                   {Connect: 1, Connack: 1, Publish: 1, Puback: 1, Pubrec: 1, Pubrel: 1, Pubcomp: 1, Subscribe: 1, Suback: 1, Unsubscribe: 1, Unsuback: 1, Disconnect: 1, Auth: 1, WillProperties: 1, Pingreq: 1},
 	PropMaximumPacketSize:      {Connect: 1, Connack: 1},
 	PropWildcardSubAvailable:   {Connack: 1},
 	PropSubIDAvailable:         {Connack: 1},
