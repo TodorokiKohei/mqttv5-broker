@@ -98,12 +98,13 @@ func (h *SelectHook) OnSelectSubscribers(s *mqtt.Subscribers, pk packets.Packet)
 		// extract subscribers which can be sent
 		clients := make([]string, 0)
 		subs := make([]packets.Subscription, 0)
-		for clientId, sub := range shared {
-			clt, ok := h.server.Clients.Get(clientId)
-			if ok && clt.State.Selector.CanSend {
-				clients = append(clients, clientId)
-				subs = append(subs, sub)
-			}
+		for _, sub := range shared {
+			//clt, ok := h.server.Clients.Get(clientId)
+			//if ok && clt.State.Selector.CanSend {
+			//	clients = append(clients, clientId)
+			//	subs = append(subs, sub)
+			//}
+			subs = append(subs, sub)
 		}
 		// Select one subscriber in subscribers which can be sent. If no subscriber can be sent,
 		// one is randomly selected from the group.

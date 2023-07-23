@@ -150,11 +150,6 @@ type ClientState struct {
 	outboundQty     int32                // number of messages currently in the outbound queue
 	Keepalive       uint16               // the number of seconds the connection can wait
 	ServerKeepalive bool                 // keepalive was set by the server
-	Selector        Selector
-}
-
-type Selector struct {
-	CanSend bool `json:"canSend"`
 }
 
 // newClient returns a new instance of Client. This is almost exclusively used by Server
@@ -170,7 +165,6 @@ func newClient(c net.Conn, o *ops) *Client {
 			cancelOpen:    cancel,
 			Keepalive:     defaultKeepalive,
 			outbound:      make(chan *packets.Packet, o.options.Capabilities.MaximumClientWritesPending),
-			Selector:      Selector{CanSend: true},
 		},
 		Properties: ClientProperties{
 			ProtocolVersion: defaultClientProtocolVersion, // default protocol version
