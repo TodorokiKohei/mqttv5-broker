@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"github.com/mochi-co/mqtt/v2"
 	"github.com/mochi-co/mqtt/v2/packets"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
-	"os"
 	"testing"
 )
 
@@ -196,12 +194,10 @@ func TestOnSelectSubscribers(t *testing.T) {
 			},
 		},
 	}
-	log := zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.InfoLevel).Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := &Hook{
 				manager: tt.fields.manager,
-				Log:     &log,
 			}
 			for _, cl := range tt.args.cls {
 				h.manager.(*MockManager).Clients[cl.ID] = cl.sel

@@ -136,6 +136,48 @@ func TestSelectSubscriber(t *testing.T) {
 	require.Equal(t, "client-2", got)
 }
 
+func TestSubscriberNotUpdate(t *testing.T) {
+	type sub struct {
+		cl *mqtt.Client
+	}
+	subs := []sub{
+		{
+			cl: &mqtt.Client{ID: "client-1"},
+		},
+		{
+			cl: &mqtt.Client{ID: "client-2"},
+		},
+		{
+			cl: &mqtt.Client{ID: "client-3"},
+		},
+	}
+	groupSubs := map[string]packets.Subscription{
+		"client-1": {},
+		"client-2": {},
+		"client-3": {},
+	}
+
+	sm := NewManager()
+	for _, s := range subs {
+		sm.UpdateClient(s.cl)
+	}
+	got, err := sm.SelectSubscriber("", groupSubs, packets.Packet{})
+	require.Equal(t, nil, err)
+	t.Log(got)
+
+	got, err = sm.SelectSubscriber("", groupSubs, packets.Packet{})
+	require.Equal(t, nil, err)
+	t.Log(got)
+
+	got, err = sm.SelectSubscriber("", groupSubs, packets.Packet{})
+	require.Equal(t, nil, err)
+	t.Log(got)
+
+	got, err = sm.SelectSubscriber("", groupSubs, packets.Packet{})
+	require.Equal(t, nil, err)
+	t.Log(got)
+}
+
 func createPingreq(t *testing.T, inQueue int, perMessage float64) packets.Packet {
 	t.Helper()
 	pk := packets.Packet{

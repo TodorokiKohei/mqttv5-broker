@@ -19,7 +19,7 @@ type Manager interface {
 }
 
 const (
-	defaultRetainedSize = 100
+	defaultRetainedSize = 10
 )
 
 // The StatusManager maintains the number of messages in the queue and the processing time per message for each client.
@@ -30,7 +30,7 @@ type StatusManager struct {
 
 // Payload is message format of pingreq sent by client.
 type Payload struct {
-	NumberOfMsgsInQueue  int     `json:"numberOfMsgsInQueue"`
+	NumberOfMsgsInQueue  int64   `json:"numberOfMsgsInQueue"`
 	ProcessingTimePerMsg float64 `json:"processingTimerPerMsg"`
 }
 
@@ -39,7 +39,7 @@ type Client struct {
 	receivedPayload         []Payload
 	avgNumberOfMsgsInQueue  float64
 	avgProcessingTimePerMsg float64
-	sentMessageCount        int32
+	sentMessageCount        int64
 }
 
 func NewManager() *StatusManager {
@@ -54,6 +54,7 @@ func NewClient() *Client {
 		receivedPayload:         make([]Payload, 0, defaultRetainedSize),
 		avgNumberOfMsgsInQueue:  0,
 		avgProcessingTimePerMsg: 0,
+		sentMessageCount:        0,
 	}
 }
 
@@ -105,7 +106,7 @@ func (m *StatusManager) SelectSubscriber(
 	pk packets.Packet,
 ) (string, error) {
 	var selectedClientId string
-	minMsgsInQueue := math.MaxFloat64
+	minMsgsInQueue := int64(math.MaxInt64)
 	minProcessingTime := math.MaxFloat64
 
 	for clientId, _ := range groupSubs {
@@ -114,7 +115,10 @@ func (m *StatusManager) SelectSubscriber(
 			continue
 		}
 		cl.RLock()
-		numMsgsInQueue := cl.avgNumberOfMsgsInQueue + float64(cl.sentMessageCount)
+		numMsgsInQueue := cl.sentMessageCount
+		if len(cl.receivedPayload) != 0 {
+			numMsgsInQueue += cl.receivedPayload[len(cl.receivedPayload)-1].NumberOfMsgsInQueue
+		}
 		processingTime := cl.avgProcessingTimePerMsg
 		cl.RUnlock()
 

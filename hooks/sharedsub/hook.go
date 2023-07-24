@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"github.com/mochi-co/mqtt/v2"
 	"github.com/mochi-co/mqtt/v2/packets"
-	"github.com/rs/zerolog"
 )
 
 type Hook struct {
 	manager Manager
-	Log     *zerolog.Logger
 	mqtt.HookBase
 }
 
@@ -51,7 +49,6 @@ func (h *Hook) OnSelectSubscribers(subs *mqtt.Subscribers, pk packets.Packet) *m
 		selClientId, err := h.manager.SelectSubscriber(topicFilter, groupSubs, pk)
 
 		if err != nil {
-			h.Log.Error().Err(err).Str("topic", topicFilter).Msg("An error occurred during subscriber selection.")
 			// Use standard function implemented by server.
 			subs.SharedSelected = map[string]packets.Subscription{}
 			return subs
