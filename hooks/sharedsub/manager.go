@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/mochi-co/mqtt/v2"
 	"github.com/mochi-co/mqtt/v2/packets"
+	"github.com/rs/zerolog"
 	"math"
 	"sync"
 )
@@ -26,6 +27,7 @@ const (
 type StatusManager struct {
 	sync.RWMutex
 	clients map[string]*Client
+	log     *zerolog.Logger
 }
 
 // Payload is message format of pingreq sent by client.
@@ -42,9 +44,10 @@ type Client struct {
 	sentMessageCount        int64
 }
 
-func NewManager() *StatusManager {
+func NewManager(log *zerolog.Logger) *StatusManager {
 	sm := &StatusManager{
 		clients: make(map[string]*Client),
+		log:     log,
 	}
 	return sm
 }
@@ -62,12 +65,14 @@ func (m *StatusManager) UpdateClient(cl *mqtt.Client) {
 	m.Lock()
 	defer m.Unlock()
 	m.clients[cl.ID] = NewClient()
+	m.log.Info().Str("client", cl.ID).Msg("update client")
 }
 
 func (m *StatusManager) DeleteClient(cl *mqtt.Client) {
 	m.Lock()
 	defer m.Unlock()
 	delete(m.clients, cl.ID)
+	m.log.Info().Str("client", cl.ID).Msg("delete client")
 }
 
 func (m *StatusManager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
@@ -97,6 +102,7 @@ func (m *StatusManager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) err
 	client.avgNumberOfMsgsInQueue = (totalMsgInQueue + float64(p.NumberOfMsgsInQueue)) / float64(len(client.receivedPayload))
 	client.avgProcessingTimePerMsg = (totalProcessingTime + p.ProcessingTimePerMsg) / float64(len(client.receivedPayload))
 	client.sentMessageCount = 0
+	m.log.Info().Str("client", cl.ID).Msgf("update client info: PINGREQ NumberOfMsgsInQueue=%d, ProcessingTimePerMsg=%f", p.NumberOfMsgsInQueue, p.ProcessingTimePerMsg)
 	return nil
 }
 
@@ -138,5 +144,6 @@ func (m *StatusManager) SelectSubscriber(
 	cl.sentMessageCount++
 	cl.Unlock()
 
+	m.log.Info().Str("topic", topicFilter).Msgf("select subscriber: %s", selectedClientId)
 	return selectedClientId, nil
 }

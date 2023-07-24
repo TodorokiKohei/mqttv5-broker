@@ -11,6 +11,12 @@ type Hook struct {
 	mqtt.HookBase
 }
 
+func NewHook(manager Manager) *Hook {
+	return &Hook{
+		manager: manager,
+	}
+}
+
 func (h *Hook) ID() string {
 	return "pingreq-hook"
 }

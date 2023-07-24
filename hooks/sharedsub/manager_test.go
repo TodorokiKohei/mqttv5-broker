@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"github.com/mochi-co/mqtt/v2"
 	"github.com/mochi-co/mqtt/v2/packets"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"math"
+	"os"
 	"testing"
 )
 
+var logger = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.Disabled)
+
 func TestUpdateClient(t *testing.T) {
-	sm := NewManager()
+	sm := NewManager(&logger)
 	cl := &mqtt.Client{
 		ID: "test-client",
 	}
@@ -20,7 +24,7 @@ func TestUpdateClient(t *testing.T) {
 }
 
 func TestDeleteClient(t *testing.T) {
-	sm := NewManager()
+	sm := NewManager(&logger)
 	cl := &mqtt.Client{
 		ID: "test-client",
 	}
@@ -33,7 +37,7 @@ func TestDeleteClient(t *testing.T) {
 }
 
 func TestUpdateClientInfoValid(t *testing.T) {
-	sm := NewManager()
+	sm := NewManager(&logger)
 
 	cl := &mqtt.Client{
 		ID: "two-message",
@@ -74,7 +78,7 @@ func TestUpdateClientInfoValid(t *testing.T) {
 }
 
 func TestUpdateClientInfoInvalid(t *testing.T) {
-	sm := NewManager()
+	sm := NewManager(&logger)
 
 	cl := &mqtt.Client{
 		ID: "valid-client",
@@ -121,7 +125,7 @@ func TestSelectSubscriber(t *testing.T) {
 		"client-3": {},
 	}
 
-	sm := NewManager()
+	sm := NewManager(&logger)
 	for _, s := range subs {
 		sm.UpdateClient(s.cl)
 		err := sm.UpdateClientInfo(s.cl, s.pk)
@@ -157,7 +161,7 @@ func TestSubscriberNotUpdate(t *testing.T) {
 		"client-3": {},
 	}
 
-	sm := NewManager()
+	sm := NewManager(&logger)
 	for _, s := range subs {
 		sm.UpdateClient(s.cl)
 	}
