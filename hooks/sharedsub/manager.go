@@ -101,7 +101,7 @@ func (m *StatusManager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) err
 	client.receivedPayload = append(client.receivedPayload, p)
 	client.avgNumberOfMsgsInQueue = (totalMsgInQueue + float64(p.NumberOfMsgsInQueue)) / float64(len(client.receivedPayload))
 	client.avgProcessingTimePerMsg = (totalProcessingTime + p.ProcessingTimePerMsg) / float64(len(client.receivedPayload))
-	client.sentMessageCount = 0
+	//client.sentMessageCount = 0
 	m.log.Info().Str("client", cl.ID).Msgf("update client info: PINGREQ NumberOfMsgsInQueue=%d, ProcessingTimePerMsg=%f", p.NumberOfMsgsInQueue, p.ProcessingTimePerMsg)
 	return nil
 }
