@@ -2,8 +2,8 @@ package sharedsub
 
 import (
 	"bytes"
-	"github.com/mochi-co/mqtt/v2"
-	"github.com/mochi-co/mqtt/v2/packets"
+	"github.com/mochi-mqtt/server/v2"
+	"github.com/mochi-mqtt/server/v2/packets"
 )
 
 type Hook struct {

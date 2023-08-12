@@ -7,7 +7,7 @@ package main
 import (
 	"bytes"
 	"flag"
-	"github.com/mochi-co/mqtt/v2/packets"
+	"github.com/mochi-mqtt/server/v2/packets"
 	"log"
 	"math/rand"
 	"os"
@@ -15,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mochi-co/mqtt/v2"
-	"github.com/mochi-co/mqtt/v2/hooks/auth"
-	"github.com/mochi-co/mqtt/v2/listeners"
+	"github.com/mochi-mqtt/server/v2"
+	"github.com/mochi-mqtt/server/v2/hooks/auth"
+	"github.com/mochi-mqtt/server/v2/listeners"
 )
 
 func main() {
