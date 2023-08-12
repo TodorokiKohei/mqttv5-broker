@@ -6,8 +6,10 @@ import (
 	"github.com/mochi-co/mqtt/v2/hooks/sharedsub"
 	"github.com/mochi-co/mqtt/v2/listeners"
 	"github.com/rs/zerolog"
+	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 )
 
@@ -24,39 +26,47 @@ func main() {
 		done <- true
 	}()
 
-	log := zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.InfoLevel).Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	opts := new(mqtt.Options)
-	opts.Logger = &log
-	server := mqtt.New(opts)
+	//
+	dirName := "results"
+	err := os.MkdirAll(dirName, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+	file, err := os.OpenFile(filepath.Join(dirName, "logfile.txt"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+	logger := zerolog.New(file).With().Timestamp().Logger().Level(zerolog.InfoLevel)
+
+	server := mqtt.New(nil)
 	_ = server.AddHook(new(auth.AllowHook), nil)
 
-	manager := sharedsub.NewManager(&log)
+	manager := sharedsub.NewManager(&logger)
 	hook := sharedsub.NewHook(manager)
 	_ = server.AddHook(hook, nil)
 
 	tcp := listeners.NewTCP("t1", tcpAddr, nil)
-	err := server.AddListener(tcp)
+	err = server.AddListener(tcp)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to create TCP listener")
-		return
+		log.Fatal(err)
 	}
 
 	stats := listeners.NewHTTPStats("stats", infoAddr, nil, server.Info)
 	err = server.AddListener(stats)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to create HTTP status listener")
-		return
+		log.Fatal(err)
 	}
 
 	go func() {
 		err := server.Serve()
 		if err != nil {
-			log.Error().Err(err).Msg("an error occurred on the server")
+			logger.Error().Err(err).Msg("an error occurred on the server")
 		}
 	}()
 
 	<-done
-	server.Log.Warn().Msg("caught signal, stopping...")
+	log.Println("caught signal, stopping...")
 	server.Close()
-	server.Log.Info().Msg("main.go finished")
+	log.Println("main.go finished")
 }
