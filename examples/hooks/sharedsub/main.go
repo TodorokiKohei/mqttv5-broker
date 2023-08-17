@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/hooks/auth"
 	"github.com/mochi-mqtt/server/v2/hooks/sharedsub"
@@ -10,7 +11,9 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -26,47 +29,70 @@ func main() {
 		done <- true
 	}()
 
-	//
-	dirName := "results"
+	// Create a directory for the results
+	timeString := time.Now().Format("20060102_150405")
+	dirName := filepath.Join("results", timeString)
 	err := os.MkdirAll(dirName, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
-	file, err := os.OpenFile(filepath.Join(dirName, "logfile.txt"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+
+	// Create a logger
+	file, err := os.OpenFile(filepath.Join(dirName, "logfile.txt"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
 	logger := zerolog.New(file).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 
+	// Create a server
 	server := mqtt.New(nil)
 	_ = server.AddHook(new(auth.AllowHook), nil)
 
-	manager := sharedsub.NewManager(&logger)
+	// Create a shared subscription manager
+	//manager := sharedsub.NewStatusManager(&logger, dirName)
+	manager := sharedsub.NewRandomManager(&logger, dirName)
 	hook := sharedsub.NewHook(manager)
 	_ = server.AddHook(hook, nil)
 
+	// Add listeners
 	tcp := listeners.NewTCP("t1", tcpAddr, nil)
 	err = server.AddListener(tcp)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Add stats listener
 	stats := listeners.NewHTTPStats("stats", infoAddr, nil, server.Info)
 	err = server.AddListener(stats)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Start recording status
+	ctx, cancel := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		err := server.Serve()
+		err := manager.StartRecording(ctx, wg)
 		if err != nil {
-			logger.Error().Err(err).Msg("an error occurred on the server")
+			log.Fatal(err)
 		}
 	}()
 
+	// Start the server
+	go func() {
+		err := server.Serve()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	// Wait for signal
 	<-done
 	log.Println("caught signal, stopping...")
 	server.Close()
+	cancel()
+	wg.Wait()
 	log.Println("main.go finished")
 }
