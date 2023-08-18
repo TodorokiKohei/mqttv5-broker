@@ -43,15 +43,20 @@ func main() {
 		log.Fatal(err)
 	}
 	defer file.Close()
-	logger := zerolog.New(file).With().Timestamp().Logger().Level(zerolog.InfoLevel)
+	logger := zerolog.New(file).With().Timestamp().Logger().Level(zerolog.DebugLevel)
 
 	// Create a server
 	server := mqtt.New(nil)
 	_ = server.AddHook(new(auth.AllowHook), nil)
 
 	// Create a shared subscription manager
-	//manager := sharedsub.NewStatusManager(&logger, dirName)
-	manager := sharedsub.NewRandomManager(&logger, dirName)
+	opts := sharedsub.Options{
+		Selector: &sharedsub.SimpleSelector{},
+		Updater:  &sharedsub.SimpleUpdater{},
+		Log:      &logger,
+		DirName:  dirName,
+	}
+	manager := sharedsub.NewManager(opts)
 	hook := sharedsub.NewHook(manager)
 	_ = server.AddHook(hook, nil)
 
