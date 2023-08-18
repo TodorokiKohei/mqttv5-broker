@@ -51,10 +51,9 @@ func main() {
 
 	// Create a shared subscription manager
 	opts := sharedsub.Options{
-		Selector: &sharedsub.SimpleSelector{},
-		Updater:  &sharedsub.SimpleUpdater{},
-		Log:      &logger,
-		DirName:  dirName,
+		Algorithm: sharedsub.NewSimpleAlgorithm(),
+		Log:       &logger,
+		DirName:   dirName,
 	}
 	manager := sharedsub.NewManager(opts)
 	hook := sharedsub.NewHook(manager)

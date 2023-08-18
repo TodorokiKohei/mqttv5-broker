@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+type selectFn func(string, []*Client, float64) (*Client, error)
+type updateFnWithPayload func(*Client, Payload) error
+type updateFnAfterSend func(*Client) error
+
 type Clients struct {
 	sync.RWMutex
 	clients map[string]*Client
@@ -36,7 +40,11 @@ func (cls *Clients) DeleteClient(clientId string) {
 	delete(cls.clients, clientId)
 }
 
-func (cls *Clients) UpdateClientInfoWithPayload(clientId string, p Payload, updateFn func(*Client, Payload) error) error {
+func (cls *Clients) UpdateClientInfoWithPayload(
+	clientId string,
+	p Payload,
+	updateFn updateFnWithPayload,
+) error {
 	cls.Lock()
 	defer cls.Unlock()
 	cl, ok := cls.clients[clientId]
@@ -56,13 +64,14 @@ func (cls *Clients) UpdateClientInfoWithPayload(clientId string, p Payload, upda
 func (cls *Clients) SelectClientToSend(
 	topicFiter string,
 	groupSubs map[string]packets.Subscription,
-	selectFn func(string, []*Client) (*Client, error),
-	updateFn func(client *Client) error,
+	selectFn selectFn,
+	updateFn updateFnAfterSend,
 ) (string, error) {
 	cls.RLock()
 	defer cls.RUnlock()
 
 	// select clients to send
+	groupAvgProcessingTimePerMsg := 0.0 // average processing time per message in the group
 	clients := make([]*Client, 0, len(cls.clients))
 	for clientId, _ := range groupSubs {
 		cl, ok := cls.clients[clientId]
@@ -70,8 +79,12 @@ func (cls *Clients) SelectClientToSend(
 			continue
 		}
 		clients = append(clients, cl)
+		if cl.avgProcessingTimePerMsg != 0 {
+			groupAvgProcessingTimePerMsg += cl.avgProcessingTimePerMsg
+		}
 	}
-	selectedClient, err := selectFn(topicFiter, clients)
+	groupAvgProcessingTimePerMsg /= float64(len(clients))
+	selectedClient, err := selectFn(topicFiter, clients, groupAvgProcessingTimePerMsg)
 	if err != nil {
 		return "", err
 	}
@@ -122,13 +135,15 @@ func (cls *Clients) Recording(ctx context.Context, fileName string) error {
 
 type Client struct {
 	sync.RWMutex
-	id                      string
-	receivedPayload         []Payload
-	numberOfMsgsInQueue     int64
-	avgProcessingTimePerMsg float64
-	sentMessageCount        int64
-	lastSentTime            int64
-	lastUpdateTime          int64
+	id string
+
+	receivedPayload            []Payload
+	numberOfMsgsInQueue        int64
+	avgProcessingTimePerMsg    float64 // milliseconds
+	sentMessageCount           int64
+	numberOfMessagesInProgress int64
+	lastSentTimeNano           int64
+	lastUpdateTimeNano         int64
 }
 
 func NewClient(clientId string) *Client {
@@ -136,7 +151,7 @@ func NewClient(clientId string) *Client {
 		id:                      clientId,
 		receivedPayload:         make([]Payload, 0, defaultRetainedSize),
 		numberOfMsgsInQueue:     0,
-		avgProcessingTimePerMsg: 0,
+		avgProcessingTimePerMsg: 0, // milliseconds
 		sentMessageCount:        0,
 	}
 }
