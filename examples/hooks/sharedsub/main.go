@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/hooks/auth"
 	"github.com/mochi-mqtt/server/v2/hooks/sharedsub"
@@ -19,6 +20,8 @@ import (
 func main() {
 	tcpAddr := ":1883"
 	infoAddr := ":8080"
+	algoFlg := flag.String("algo", "score", "shared subscription algorithm")
+	flag.Parse()
 
 	// When signal is notified shut down server
 	sigs := make(chan os.Signal, 1)
@@ -49,9 +52,20 @@ func main() {
 	server := mqtt.New(nil)
 	_ = server.AddHook(new(auth.AllowHook), nil)
 
+	var algo sharedsub.Algorithm
+	if *algoFlg == "score" {
+		algo = sharedsub.NewScoreAlgorithm()
+		log.Println("selected score algorithm")
+	} else if *algoFlg == "random" {
+		algo = sharedsub.NewRandomAlgorithm()
+		log.Println("selected random algorithm")
+	} else {
+		log.Fatal("invalid algorithm")
+	}
+
 	// Create a shared subscription manager
 	opts := sharedsub.Options{
-		Algorithm: sharedsub.NewSimpleAlgorithm(),
+		Algorithm: algo,
 		Log:       &logger,
 		DirName:   dirName,
 	}

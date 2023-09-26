@@ -72,6 +72,7 @@ func (cls *Clients) SelectClientToSend(
 
 	// select clients to send
 	groupAvgProcessingTimePerMsg := 0.0 // average processing time per message in the group
+	clientCnt := 0
 	clients := make([]*Client, 0, len(cls.clients))
 	for clientId, _ := range groupSubs {
 		cl, ok := cls.clients[clientId]
@@ -81,9 +82,10 @@ func (cls *Clients) SelectClientToSend(
 		clients = append(clients, cl)
 		if cl.avgProcessingTimePerMsg != 0 {
 			groupAvgProcessingTimePerMsg += cl.avgProcessingTimePerMsg
+			clientCnt++
 		}
 	}
-	groupAvgProcessingTimePerMsg /= float64(len(clients))
+	groupAvgProcessingTimePerMsg /= float64(clientCnt)
 	selectedClient, err := selectFn(topicFiter, clients, groupAvgProcessingTimePerMsg)
 	if err != nil {
 		return "", err
