@@ -7,8 +7,8 @@ import (
 	"github.com/mochi-mqtt/server/v2/hooks/auth"
 	"github.com/mochi-mqtt/server/v2/hooks/sharedsub"
 	"github.com/mochi-mqtt/server/v2/listeners"
-	"github.com/rs/zerolog"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -46,7 +46,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer file.Close()
-	logger := zerolog.New(file).With().Timestamp().Logger().Level(zerolog.DebugLevel)
+	logger := slog.New(slog.NewJSONHandler(file, nil))
 
 	// Create a server
 	server := mqtt.New(nil)
@@ -66,7 +66,7 @@ func main() {
 	// Create a shared subscription manager
 	opts := sharedsub.Options{
 		Algorithm: algo,
-		Log:       &logger,
+		Log:       logger,
 		DirName:   dirName,
 	}
 	manager := sharedsub.NewManager(opts)

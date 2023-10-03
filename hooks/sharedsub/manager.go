@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
-	"github.com/rs/zerolog"
+	"log/slog"
 	"math"
 	"math/rand"
 	"path/filepath"
@@ -45,13 +45,13 @@ type Algorithm interface {
 type Manager struct {
 	algorithm Algorithm
 	clients   *Clients
-	log       *zerolog.Logger
+	log       *slog.Logger
 	dirName   string
 }
 
 type Options struct {
 	Algorithm Algorithm
-	Log       *zerolog.Logger
+	Log       *slog.Logger
 	DirName   string
 }
 
@@ -62,22 +62,20 @@ func NewManager(options Options) *Manager {
 		log:       options.Log,
 		dirName:   options.DirName,
 	}
-	m.log.Info().
-		Str("Algorithm", fmt.Sprintf("%#v\n", options.Algorithm)).
-		Msg("NewManager")
+	m.log.Info("Create Manager", "Algorithm", fmt.Sprintf("%#v\n", options.Algorithm))
 	return m
 }
 
 // UpdateClient updates the client.
 func (m *Manager) UpdateClient(cl *mqtt.Client) {
 	m.clients.AddClient(cl.ID)
-	m.log.Info().Str("client", cl.ID).Msg("update client")
+	m.log.Info("update client", "client", cl.ID)
 }
 
 // DeleteClient deletes the client.
 func (m *Manager) DeleteClient(cl *mqtt.Client) {
 	m.clients.DeleteClient(cl.ID)
-	m.log.Info().Str("client", cl.ID).Msg("delete client")
+	m.log.Info("delete client", "client", cl.ID)
 }
 
 // UpdateClientInfo updates a client's information with updater.
@@ -92,7 +90,7 @@ func (m *Manager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
 	if err != nil {
 		return err
 	}
-	m.log.Info().Str("client", cl.ID).Msgf("update client info: PINGREQ NumberOfMsgsInQueue=%d, ProcessingTimePerMsg=%f", p.NumberOfMsgsInQueue, p.ProcessingTimePerMsg)
+	m.log.Info(fmt.Sprintf("update client info: PINGREQ NumberOfMsgsInQueue=%d, ProcessingTimePerMsg=%f", p.NumberOfMsgsInQueue, p.ProcessingTimePerMsg), "client", cl.ID)
 	return nil
 }
 
@@ -111,11 +109,11 @@ func (m *Manager) SelectSubscriber(
 	)
 
 	if err != nil {
-		m.log.Error().Err(err).Msgf("failed to select subscriber: %s", topicFilter)
+		m.log.Error(fmt.Sprintf("failed to select subscriber: %s", topicFilter))
 		return "", err
 	}
 
-	m.log.Debug().Str("topic", topicFilter).Msgf("select subscriber: %s", selectedClientId)
+	m.log.Debug(fmt.Sprintf("select subscriber: %s", selectedClientId), "topic", topicFilter)
 	return selectedClientId, nil
 }
 
@@ -126,7 +124,7 @@ func (m *Manager) StartRecording(ctx context.Context, wg *sync.WaitGroup) error 
 	// write client status to csv file every second
 	fileName := filepath.Join(m.dirName, "client_status.csv")
 	if err := m.clients.Recording(ctx, fileName); err != nil {
-		m.log.Fatal().Err(err).Msg("failed to write csv")
+		m.log.Error("failed to write csv", err)
 		return err
 	}
 	return nil
