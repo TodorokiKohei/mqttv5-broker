@@ -7,11 +7,11 @@ import (
 )
 
 type Hook struct {
-	manager Manager
+	manager *Manager
 	mqtt.HookBase
 }
 
-func NewHook(manager Manager) *Hook {
+func NewHook(manager *Manager) *Hook {
 	return &Hook{
 		manager: manager,
 	}
