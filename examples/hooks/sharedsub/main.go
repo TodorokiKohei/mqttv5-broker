@@ -54,7 +54,7 @@ func main() {
 
 	var algo sharedsub.Algorithm
 	if *algoFlg == "score" {
-		algo = sharedsub.NewScoreAlgorithm()
+		algo = sharedsub.NewScoreAlgorithm(logger)
 		log.Println("selected score algorithm")
 	} else if *algoFlg == "random" {
 		algo = sharedsub.NewRandomAlgorithm()

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"math"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -61,6 +62,10 @@ func NewManager(options Options) *Manager {
 		algorithm: options.Algorithm,
 		log:       options.Log,
 		dirName:   options.DirName,
+	}
+
+	if m.log == nil {
+		m.log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	}
 	m.log.Info("Create Manager", "Algorithm", fmt.Sprintf("%#v\n", options.Algorithm))
 	return m
@@ -193,7 +198,10 @@ type RandomAlgorithm struct {
 }
 
 func NewRandomAlgorithm() *RandomAlgorithm {
-	return &RandomAlgorithm{}
+	return &RandomAlgorithm{
+		randomSelector: &randomSelector{},
+		simpleUpdater:  &simpleUpdater{},
+	}
 }
 
 type randomSelector struct{}
@@ -212,8 +220,11 @@ type ScoreAlgorithm struct {
 	*ScoreUpdater
 }
 
-func NewScoreAlgorithm() *ScoreAlgorithm {
-	return &ScoreAlgorithm{}
+func NewScoreAlgorithm(log *slog.Logger) *ScoreAlgorithm {
+	return &ScoreAlgorithm{
+		ScoreUpdater:  &ScoreUpdater{},
+		ScoreSelector: &ScoreSelector{log: log},
+	}
 }
 
 type ScoreUpdater struct{}
@@ -243,7 +254,9 @@ func (su *ScoreUpdater) updateClientInfoAfterSending(cl *Client) error {
 	return nil
 }
 
-type ScoreSelector struct{}
+type ScoreSelector struct {
+	log *slog.Logger
+}
 
 func (ss *ScoreSelector) selectClientToSend(topicFilter string, clients []*Client, groupAvgProcessingTime float64) (*Client, error) {
 	var selectedClient *Client
@@ -272,7 +285,9 @@ func (ss *ScoreSelector) selectClientToSend(topicFilter string, clients []*Clien
 			selectedClient = cl
 			maxScore = score
 		}
+		ss.log.Info("selectClientToSend: calculate score", "client", cl.id, "score", score)
 	}
+	ss.log.Info("selectClientToSend: selected client", "client", selectedClient.id, "score", maxScore)
 
 	if selectedClient == nil {
 		return nil, errors.New(fmt.Sprintf("client not found: %s", topicFilter))
