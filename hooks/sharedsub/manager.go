@@ -91,7 +91,7 @@ func (m *Manager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
 		return err
 	}
 
-	err = m.clients.UpdateClientInfoWithPayload(cl.ID, p, m.algorithm.updateClientInfoWithPayload)
+	err = m.clients.UpdateClientInfoWithPayload(cl.ID, p, m.algorithm)
 	if err != nil {
 		return err
 	}
@@ -109,8 +109,7 @@ func (m *Manager) SelectSubscriber(
 	selectedClientId, err := m.clients.SelectClientToSend(
 		topicFilter,
 		groupSubs,
-		m.algorithm.selectClientToSend,
-		m.algorithm.updateClientInfoAfterSending,
+		m.algorithm,
 	)
 
 	if err != nil {

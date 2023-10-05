@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-type selectFn func(string, []*Client, float64) (*Client, error)
-type updateFnWithPayload func(*Client, Payload) error
-type updateFnAfterSend func(*Client) error
-
 type Clients struct {
 	sync.RWMutex
 	clients map[string]*Client
@@ -43,7 +39,7 @@ func (cls *Clients) DeleteClient(clientId string) {
 func (cls *Clients) UpdateClientInfoWithPayload(
 	clientId string,
 	p Payload,
-	updateFn updateFnWithPayload,
+	algo Algorithm,
 ) error {
 	cls.Lock()
 	defer cls.Unlock()
@@ -54,7 +50,7 @@ func (cls *Clients) UpdateClientInfoWithPayload(
 
 	cl.Lock()
 	defer cl.Unlock()
-	err := updateFn(cl, p)
+	err := algo.updateClientInfoWithPayload(cl, p)
 	if err != nil {
 		return err
 	}
@@ -64,8 +60,7 @@ func (cls *Clients) UpdateClientInfoWithPayload(
 func (cls *Clients) SelectClientToSend(
 	topicFiter string,
 	groupSubs map[string]packets.Subscription,
-	selectFn selectFn,
-	updateFn updateFnAfterSend,
+	algo Algorithm,
 ) (string, error) {
 	cls.RLock()
 	defer cls.RUnlock()
@@ -86,7 +81,7 @@ func (cls *Clients) SelectClientToSend(
 		}
 	}
 	groupAvgProcessingTimePerMsg /= float64(clientCnt)
-	selectedClient, err := selectFn(topicFiter, clients, groupAvgProcessingTimePerMsg)
+	selectedClient, err := algo.selectClientToSend(topicFiter, clients, groupAvgProcessingTimePerMsg)
 	if err != nil {
 		return "", err
 	}
@@ -94,7 +89,7 @@ func (cls *Clients) SelectClientToSend(
 	// update client info
 	selectedClient.Lock()
 	defer selectedClient.Unlock()
-	err = updateFn(selectedClient)
+	err = algo.updateClientInfoAfterSending(selectedClient)
 	if err != nil {
 		return "", err
 	}
