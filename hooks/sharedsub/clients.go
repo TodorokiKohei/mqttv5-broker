@@ -66,7 +66,7 @@ func (cls *Clients) SelectClientToSend(
 	defer cls.RUnlock()
 
 	// select clients to send
-	groupAvgProcessingTimePerMsg := 0.0 // average processing time per message in the group
+	groupAvgProcessingTimePerMsg := 0.0
 	clientCnt := 0
 	clients := make([]*Client, 0, len(cls.clients))
 	for clientId, _ := range groupSubs {
@@ -75,12 +75,15 @@ func (cls *Clients) SelectClientToSend(
 			continue
 		}
 		clients = append(clients, cl)
+		// calculate average processing time per message in the group
 		if cl.avgProcessingTimePerMsg != 0 {
 			groupAvgProcessingTimePerMsg += cl.avgProcessingTimePerMsg
 			clientCnt++
 		}
 	}
-	groupAvgProcessingTimePerMsg /= float64(clientCnt)
+	if clientCnt != 0 {
+		groupAvgProcessingTimePerMsg /= float64(clientCnt)
+	}
 	selectedClient, err := algo.selectClientToSend(topicFiter, clients, groupAvgProcessingTimePerMsg)
 	if err != nil {
 		return "", err
@@ -150,6 +153,8 @@ func NewClient(clientId string) *Client {
 		numberOfMsgsInQueue:     0,
 		avgProcessingTimePerMsg: 0, // milliseconds
 		sentMessageCount:        0,
+		lastSentTimeNano:        time.Now().UnixNano(),
+		lastUpdateTimeNano:      time.Now().UnixNano(),
 	}
 }
 
