@@ -70,7 +70,7 @@ func main() {
 		DirName:   dirName,
 	}
 	manager := sharedsub.NewManager(opts)
-	hook := sharedsub.NewHook(manager)
+	hook := sharedsub.NewHook(manager, logger)
 	_ = server.AddHook(hook, nil)
 
 	// Add listeners

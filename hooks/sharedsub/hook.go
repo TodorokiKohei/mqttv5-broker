@@ -2,19 +2,31 @@ package sharedsub
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
+	"os"
+	"time"
+
+	"log/slog"
 )
 
 type Hook struct {
 	manager *Manager
+	log     *slog.Logger
 	mqtt.HookBase
 }
 
-func NewHook(manager *Manager) *Hook {
-	return &Hook{
+func NewHook(manager *Manager, logger *slog.Logger) *Hook {
+	hook := &Hook{
 		manager: manager,
+		log:     logger,
 	}
+	if hook.log == nil {
+		hook.log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	}
+	return hook
 }
 
 func (h *Hook) ID() string {
@@ -27,6 +39,7 @@ func (h *Hook) Provides(b byte) bool {
 		mqtt.OnPacketRead,
 		mqtt.OnSelectSubscribers,
 		mqtt.OnDisconnect,
+		mqtt.OnPacketSent,
 	}, []byte{b})
 }
 
@@ -40,6 +53,9 @@ func (h *Hook) OnPacketRead(cl *mqtt.Client, pk packets.Packet) (packets.Packet,
 		if err != nil {
 			return pk, err
 		}
+	} else if pk.FixedHeader.Type == packets.Publish {
+		hash := sha256.Sum256(pk.Payload)
+		h.log.Info("read PUBLISH packet in hook", "method", "OnPacketRead", "kind", "readPUBLISH", "readTime", time.Now().UnixMilli(), "hash", hex.EncodeToString(hash[:]))
 	}
 	return pk, nil
 }
@@ -70,4 +86,11 @@ func (h *Hook) OnSelectSubscribers(subs *mqtt.Subscribers, pk packets.Packet) *m
 		subs.SharedSelected[selClientId] = oldSub.Merge(groupSubs[selClientId])
 	}
 	return subs
+}
+
+func (h *Hook) OnPacketSent(cl *mqtt.Client, pk packets.Packet, b []byte) {
+	if pk.FixedHeader.Type == packets.Publish {
+		hash := sha256.Sum256(pk.Payload)
+		h.log.Info("sent PUBLISH packet in hooks", "method", "OnPacketSent", "kind", "sentPUBLISH", "sentTime", time.Now().UnixMilli(), "hash", hex.EncodeToString(hash[:]))
+	}
 }

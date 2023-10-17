@@ -289,7 +289,6 @@ func (ss *ScoreSelector) selectClientToSend(topicFilter string, clients []*Clien
 		ss.log.Info("calculate score", "method", "selectClientToSend", "kind", "calcScore", "clientID", cl.id, "score", score, "now", now,
 			"t1", t1, "t2", t2, "m", m, "tp", tp, "m*tp-t2", processingTimeRequired)
 	}
-	ss.log.Info("selected client", "method", "selectClientToSend", "kind", "selectClient", "selectedClientID", selectedClient.id, "score", maxScore, "now", now)
 
 	if selectedClient == nil {
 		return nil, errors.New(fmt.Sprintf("client not found: %s", topicFilter))
