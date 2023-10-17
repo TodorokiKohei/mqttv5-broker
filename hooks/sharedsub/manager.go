@@ -74,13 +74,13 @@ func NewManager(options Options) *Manager {
 // UpdateClient updates the client.
 func (m *Manager) UpdateClient(cl *mqtt.Client) {
 	m.clients.AddClient(cl.ID)
-	m.log.Info("update client", "client", cl.ID)
+	m.log.Info("update client", "method", "UpdateClient", "clientID", cl.ID)
 }
 
 // DeleteClient deletes the client.
 func (m *Manager) DeleteClient(cl *mqtt.Client) {
 	m.clients.DeleteClient(cl.ID)
-	m.log.Info("delete client", "client", cl.ID)
+	m.log.Info("delete client", "method", "DeleteClient", "clientID", cl.ID)
 }
 
 // UpdateClientInfo updates a client's information with updater.
@@ -95,7 +95,9 @@ func (m *Manager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
 	if err != nil {
 		return err
 	}
-	m.log.Info(fmt.Sprintf("update client info: PINGREQ NumberOfMsgsInQueue=%d, ProcessingTimePerMsg=%f", p.NumberOfMsgsInQueue, p.ProcessingTimePerMsg), "client", cl.ID)
+	m.log.Info("update client info with PINGREQ",
+		"method", "UpdateClientInfo", "clientID", cl.ID,
+		"NumberOfMsgsInQueue", p.NumberOfMsgsInQueue, "ProcessingTimePerMsg", p.ProcessingTimePerMsg, "now", time.Now().UnixNano())
 	return nil
 }
 
@@ -103,7 +105,7 @@ func (m *Manager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
 func (m *Manager) SelectSubscriber(
 	topicFilter string,
 	groupSubs map[string]packets.Subscription,
-	_ packets.Packet,
+	pk packets.Packet,
 ) (string, error) {
 
 	selectedClientId, err := m.clients.SelectClientToSend(
@@ -230,16 +232,16 @@ type ScoreUpdater struct{}
 
 func (su *ScoreUpdater) updateClientInfoWithPayload(cl *Client, p Payload) error {
 	totalProcessingTime := cl.avgProcessingTimePerMsg * float64(len(cl.receivedPayload))
-	if len(cl.receivedPayload) == defaultRetainedSize {
+
+	// update client info
+	cl.receivedPayload = append(cl.receivedPayload, p)
+	if len(cl.receivedPayload) == defaultRetainedSize+1 {
 		// Remove old information.
 		totalProcessingTime -= cl.receivedPayload[0].ProcessingTimePerMsg
 		cl.receivedPayload = cl.receivedPayload[1:]
 	}
-
-	// update client info
-	cl.receivedPayload = append(cl.receivedPayload, p)
-	cl.numberOfMsgsInQueue = p.NumberOfMsgsInQueue
 	cl.avgProcessingTimePerMsg = (totalProcessingTime + p.ProcessingTimePerMsg) / float64(len(cl.receivedPayload))
+	cl.numberOfMsgsInQueue = p.NumberOfMsgsInQueue
 
 	cl.numberOfMessagesInProgress = 0             // reset number of messages in progress
 	cl.lastUpdateTimeNano = time.Now().UnixNano() // update last update time
@@ -284,9 +286,10 @@ func (ss *ScoreSelector) selectClientToSend(topicFilter string, clients []*Clien
 			selectedClient = cl
 			maxScore = score
 		}
-		ss.log.Info("selectClientToSend: calculate score", "client", cl.id, "score", score)
+		ss.log.Info("calculate score", "method", "selectClientToSend", "kind", "calcScore", "clientID", cl.id, "score", score, "now", now,
+			"t1", t1, "t2", t2, "m", m, "tp", tp, "m*tp-t2", processingTimeRequired)
 	}
-	ss.log.Info("selectClientToSend: selected client", "client", selectedClient.id, "score", maxScore)
+	ss.log.Info("selected client", "method", "selectClientToSend", "kind", "selectClient", "selectedClientID", selectedClient.id, "score", maxScore, "now", now)
 
 	if selectedClient == nil {
 		return nil, errors.New(fmt.Sprintf("client not found: %s", topicFilter))
