@@ -55,7 +55,7 @@ func (h *Hook) OnPacketRead(cl *mqtt.Client, pk packets.Packet) (packets.Packet,
 		}
 	} else if pk.FixedHeader.Type == packets.Publish {
 		hash := sha256.Sum256(pk.Payload)
-		h.log.Info("read PUBLISH packet in hook", "method", "OnPacketRead", "kind", "readPUBLISH", "readTime", time.Now().UnixMilli(), "hash", hex.EncodeToString(hash[:]))
+		h.log.Debug("read PUBLISH packet in hook", "method", "OnPacketRead", "kind", "readPUBLISH", "readTime", time.Now().UnixMilli(), "hash", hex.EncodeToString(hash[:]))
 	}
 	return pk, nil
 }
@@ -91,6 +91,6 @@ func (h *Hook) OnSelectSubscribers(subs *mqtt.Subscribers, pk packets.Packet) *m
 func (h *Hook) OnPacketSent(cl *mqtt.Client, pk packets.Packet, b []byte) {
 	if pk.FixedHeader.Type == packets.Publish {
 		hash := sha256.Sum256(pk.Payload)
-		h.log.Info("sent PUBLISH packet in hooks", "method", "OnPacketSent", "kind", "sentPUBLISH", "sentTime", time.Now().UnixMilli(), "hash", hex.EncodeToString(hash[:]))
+		h.log.Debug("sent PUBLISH packet in hooks", "method", "OnPacketSent", "kind", "sentPUBLISH", "sentTime", time.Now().UnixMilli(), "hash", hex.EncodeToString(hash[:]))
 	}
 }
