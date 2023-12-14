@@ -20,7 +20,7 @@ import (
 func main() {
 	tcpAddr := ":1883"
 	infoAddr := ":8080"
-	algoFlg := flag.String("algo", "score", "shared subscription algorithm")
+	algoFlg := flag.String("algo", "", "shared subscription algorithm")
 	flag.Parse()
 
 	// When signal is notified shut down server
@@ -46,7 +46,9 @@ func main() {
 		log.Fatal(err)
 	}
 	defer file.Close()
-	logger := slog.New(slog.NewJSONHandler(file, nil))
+	level := new(slog.LevelVar)
+	level.Set(slog.LevelInfo)
+	logger := slog.New(slog.NewJSONHandler(file, &slog.HandlerOptions{Level: level}))
 
 	// Create a server
 	server := mqtt.New(nil)
@@ -54,11 +56,14 @@ func main() {
 
 	var algo sharedsub.Algorithm
 	if *algoFlg == "score" {
-		algo = sharedsub.NewScoreAlgorithm()
+		algo = sharedsub.NewScoreAlgorithm(logger)
 		log.Println("selected score algorithm")
 	} else if *algoFlg == "random" {
 		algo = sharedsub.NewRandomAlgorithm()
 		log.Println("selected random algorithm")
+	} else if *algoFlg == "round" {
+		algo = sharedsub.NewRoundRobinAlgorithm()
+		log.Println("selected round robin algorithm")
 	} else {
 		log.Fatal("invalid algorithm")
 	}
@@ -70,7 +75,7 @@ func main() {
 		DirName:   dirName,
 	}
 	manager := sharedsub.NewManager(opts)
-	hook := sharedsub.NewHook(manager)
+	hook := sharedsub.NewHook(manager, logger)
 	_ = server.AddHook(hook, nil)
 
 	// Add listeners

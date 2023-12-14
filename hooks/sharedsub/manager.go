@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"math"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -62,6 +63,10 @@ func NewManager(options Options) *Manager {
 		log:       options.Log,
 		dirName:   options.DirName,
 	}
+
+	if m.log == nil {
+		m.log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	}
 	m.log.Info("Create Manager", "Algorithm", fmt.Sprintf("%#v\n", options.Algorithm))
 	return m
 }
@@ -69,13 +74,13 @@ func NewManager(options Options) *Manager {
 // UpdateClient updates the client.
 func (m *Manager) UpdateClient(cl *mqtt.Client) {
 	m.clients.AddClient(cl.ID)
-	m.log.Info("update client", "client", cl.ID)
+	m.log.Info("update client", "method", "UpdateClient", "clientID", cl.ID)
 }
 
 // DeleteClient deletes the client.
 func (m *Manager) DeleteClient(cl *mqtt.Client) {
 	m.clients.DeleteClient(cl.ID)
-	m.log.Info("delete client", "client", cl.ID)
+	m.log.Info("delete client", "method", "DeleteClient", "clientID", cl.ID)
 }
 
 // UpdateClientInfo updates a client's information with updater.
@@ -86,11 +91,13 @@ func (m *Manager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
 		return err
 	}
 
-	err = m.clients.UpdateClientInfoWithPayload(cl.ID, p, m.algorithm.updateClientInfoWithPayload)
+	err = m.clients.UpdateClientInfoWithPayload(cl.ID, p, m.algorithm)
 	if err != nil {
 		return err
 	}
-	m.log.Info(fmt.Sprintf("update client info: PINGREQ NumberOfMsgsInQueue=%d, ProcessingTimePerMsg=%f", p.NumberOfMsgsInQueue, p.ProcessingTimePerMsg), "client", cl.ID)
+	m.log.Info("update client info with PINGREQ",
+		"method", "UpdateClientInfo", "clientID", cl.ID,
+		"NumberOfMsgsInQueue", p.NumberOfMsgsInQueue, "ProcessingTimePerMsg", p.ProcessingTimePerMsg, "now", time.Now().UnixNano())
 	return nil
 }
 
@@ -98,14 +105,13 @@ func (m *Manager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
 func (m *Manager) SelectSubscriber(
 	topicFilter string,
 	groupSubs map[string]packets.Subscription,
-	_ packets.Packet,
+	pk packets.Packet,
 ) (string, error) {
 
 	selectedClientId, err := m.clients.SelectClientToSend(
 		topicFilter,
 		groupSubs,
-		m.algorithm.selectClientToSend,
-		m.algorithm.updateClientInfoAfterSending,
+		m.algorithm,
 	)
 
 	if err != nil {
@@ -113,7 +119,7 @@ func (m *Manager) SelectSubscriber(
 		return "", err
 	}
 
-	m.log.Debug(fmt.Sprintf("select subscriber: %s", selectedClientId), "topic", topicFilter)
+	m.log.Info(fmt.Sprintf("select subscriber: %s", selectedClientId), "topic", topicFilter)
 	return selectedClientId, nil
 }
 
@@ -130,62 +136,6 @@ func (m *Manager) StartRecording(ctx context.Context, wg *sync.WaitGroup) error 
 	return nil
 }
 
-// SimpleAlgorithm selects a subscriber based on the number of messages in the queue and the processing time per message.
-type SimpleAlgorithm struct {
-	*simpleSelector
-	*simpleUpdater
-}
-
-func NewSimpleAlgorithm() *SimpleAlgorithm {
-	return &SimpleAlgorithm{}
-}
-
-type simpleUpdater struct{}
-
-func (su *simpleUpdater) updateClientInfoWithPayload(cl *Client, p Payload) error {
-	totalProcessingTime := cl.avgProcessingTimePerMsg * float64(len(cl.receivedPayload))
-	if len(cl.receivedPayload) == defaultRetainedSize {
-		// Remove old information.
-		totalProcessingTime -= cl.receivedPayload[0].ProcessingTimePerMsg
-		cl.receivedPayload = cl.receivedPayload[1:]
-	}
-
-	// update client info
-	cl.receivedPayload = append(cl.receivedPayload, p)
-	cl.numberOfMsgsInQueue = p.NumberOfMsgsInQueue
-	cl.avgProcessingTimePerMsg = (totalProcessingTime + p.ProcessingTimePerMsg) / float64(len(cl.receivedPayload))
-	return nil
-}
-
-func (su *simpleUpdater) updateClientInfoAfterSending(cl *Client) error {
-	cl.sentMessageCount++
-	return nil
-}
-
-type simpleSelector struct{}
-
-func (su *simpleSelector) selectClientToSend(topicFilter string, clients []*Client, _ float64) (*Client, error) {
-	var selectedClient *Client
-	minMsgsInQueue := int64(math.MaxInt64)
-	minProcessingTime := math.MaxFloat64
-
-	for _, cl := range clients {
-		numMsgsInQueue := cl.sentMessageCount + cl.numberOfMsgsInQueue
-		processingTime := cl.avgProcessingTimePerMsg
-
-		if numMsgsInQueue < minMsgsInQueue || (numMsgsInQueue == minMsgsInQueue && processingTime < minProcessingTime) {
-			selectedClient = cl
-			minMsgsInQueue = numMsgsInQueue
-			minProcessingTime = processingTime
-		}
-	}
-
-	if selectedClient == nil {
-		return nil, errors.New(fmt.Sprintf("client not found: %s", topicFilter))
-	}
-	return selectedClient, nil
-}
-
 // RandomAlgorithm selects a subscriber randomly.
 type RandomAlgorithm struct {
 	*randomSelector
@@ -193,7 +143,36 @@ type RandomAlgorithm struct {
 }
 
 func NewRandomAlgorithm() *RandomAlgorithm {
-	return &RandomAlgorithm{}
+	return &RandomAlgorithm{
+		randomSelector: &randomSelector{},
+		simpleUpdater:  &simpleUpdater{},
+	}
+}
+
+type simpleUpdater struct{}
+
+func (su *simpleUpdater) updateClientInfoWithPayload(cl *Client, p Payload) error {
+	// update client info
+	totalProcessingTime := cl.avgProcessingTimePerMsg * float64(len(cl.receivedPayload))
+	cl.receivedPayload = append(cl.receivedPayload, p)
+	if len(cl.receivedPayload) == defaultRetainedSize+1 {
+		// Remove old information.
+		totalProcessingTime -= cl.receivedPayload[0].ProcessingTimePerMsg
+		cl.receivedPayload = cl.receivedPayload[1:]
+	}
+	cl.avgProcessingTimePerMsg = (totalProcessingTime + p.ProcessingTimePerMsg) / float64(len(cl.receivedPayload))
+	cl.numberOfMsgsInQueue = p.NumberOfMsgsInQueue
+
+	cl.numberOfMessagesInProgress = 0
+	cl.lastUpdateTimeNano = time.Now().UnixNano()
+	return nil
+}
+
+func (su *simpleUpdater) updateClientInfoAfterSending(cl *Client) error {
+	cl.sentMessageCount++
+	cl.numberOfMessagesInProgress++
+	cl.lastSentTimeNano = time.Now().UnixNano()
+	return nil
 }
 
 type randomSelector struct{}
@@ -212,24 +191,26 @@ type ScoreAlgorithm struct {
 	*ScoreUpdater
 }
 
-func NewScoreAlgorithm() *ScoreAlgorithm {
-	return &ScoreAlgorithm{}
+func NewScoreAlgorithm(log *slog.Logger) *ScoreAlgorithm {
+	return &ScoreAlgorithm{
+		ScoreUpdater:  &ScoreUpdater{},
+		ScoreSelector: &ScoreSelector{log: log},
+	}
 }
 
 type ScoreUpdater struct{}
 
 func (su *ScoreUpdater) updateClientInfoWithPayload(cl *Client, p Payload) error {
+	// update client info
 	totalProcessingTime := cl.avgProcessingTimePerMsg * float64(len(cl.receivedPayload))
-	if len(cl.receivedPayload) == defaultRetainedSize {
+	cl.receivedPayload = append(cl.receivedPayload, p)
+	if len(cl.receivedPayload) == defaultRetainedSize+1 {
 		// Remove old information.
 		totalProcessingTime -= cl.receivedPayload[0].ProcessingTimePerMsg
 		cl.receivedPayload = cl.receivedPayload[1:]
 	}
-
-	// update client info
-	cl.receivedPayload = append(cl.receivedPayload, p)
-	cl.numberOfMsgsInQueue = p.NumberOfMsgsInQueue
 	cl.avgProcessingTimePerMsg = (totalProcessingTime + p.ProcessingTimePerMsg) / float64(len(cl.receivedPayload))
+	cl.numberOfMsgsInQueue = p.NumberOfMsgsInQueue
 
 	cl.numberOfMessagesInProgress = 0             // reset number of messages in progress
 	cl.lastUpdateTimeNano = time.Now().UnixNano() // update last update time
@@ -243,7 +224,9 @@ func (su *ScoreUpdater) updateClientInfoAfterSending(cl *Client) error {
 	return nil
 }
 
-type ScoreSelector struct{}
+type ScoreSelector struct {
+	log *slog.Logger
+}
 
 func (ss *ScoreSelector) selectClientToSend(topicFilter string, clients []*Client, groupAvgProcessingTime float64) (*Client, error) {
 	var selectedClient *Client
@@ -272,10 +255,44 @@ func (ss *ScoreSelector) selectClientToSend(topicFilter string, clients []*Clien
 			selectedClient = cl
 			maxScore = score
 		}
+		ss.log.Debug("calculate score", "method", "selectClientToSend", "kind", "calcScore", "clientID", cl.id, "score", score, "now", now,
+			"t1", t1, "t2", t2, "m", m, "tp", tp, "m*tp-t2", processingTimeRequired)
 	}
 
 	if selectedClient == nil {
 		return nil, errors.New(fmt.Sprintf("client not found: %s", topicFilter))
 	}
+	return selectedClient, nil
+}
+
+type RoundRobinAlgorithm struct {
+	*simpleUpdater
+	*roundRobinSelector
+}
+
+func NewRoundRobinAlgorithm() *RoundRobinAlgorithm {
+	return &RoundRobinAlgorithm{
+		simpleUpdater:      &simpleUpdater{},
+		roundRobinSelector: &roundRobinSelector{},
+	}
+}
+
+type roundRobinSelector struct{}
+
+func (rrs *roundRobinSelector) selectClientToSend(topicFilter string, clients []*Client, _ float64) (*Client, error) {
+
+	// select the client with the longest elapsed time since the message was sent
+	var selectedClient *Client
+	for _, cl := range clients {
+		if selectedClient == nil {
+			selectedClient = cl
+		} else if cl.lastSentTimeNano < selectedClient.lastSentTimeNano {
+			selectedClient = cl
+		}
+	}
+	if selectedClient == nil {
+		return nil, errors.New(fmt.Sprintf("client not found: %s", topicFilter))
+	}
+
 	return selectedClient, nil
 }

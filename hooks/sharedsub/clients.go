@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-type selectFn func(string, []*Client, float64) (*Client, error)
-type updateFnWithPayload func(*Client, Payload) error
-type updateFnAfterSend func(*Client) error
-
 type Clients struct {
 	sync.RWMutex
 	clients map[string]*Client
@@ -43,7 +39,7 @@ func (cls *Clients) DeleteClient(clientId string) {
 func (cls *Clients) UpdateClientInfoWithPayload(
 	clientId string,
 	p Payload,
-	updateFn updateFnWithPayload,
+	algo Algorithm,
 ) error {
 	cls.Lock()
 	defer cls.Unlock()
@@ -54,7 +50,7 @@ func (cls *Clients) UpdateClientInfoWithPayload(
 
 	cl.Lock()
 	defer cl.Unlock()
-	err := updateFn(cl, p)
+	err := algo.updateClientInfoWithPayload(cl, p)
 	if err != nil {
 		return err
 	}
@@ -64,14 +60,13 @@ func (cls *Clients) UpdateClientInfoWithPayload(
 func (cls *Clients) SelectClientToSend(
 	topicFiter string,
 	groupSubs map[string]packets.Subscription,
-	selectFn selectFn,
-	updateFn updateFnAfterSend,
+	algo Algorithm,
 ) (string, error) {
 	cls.RLock()
 	defer cls.RUnlock()
 
 	// select clients to send
-	groupAvgProcessingTimePerMsg := 0.0 // average processing time per message in the group
+	groupAvgProcessingTimePerMsg := 0.0
 	clientCnt := 0
 	clients := make([]*Client, 0, len(cls.clients))
 	for clientId, _ := range groupSubs {
@@ -80,13 +75,16 @@ func (cls *Clients) SelectClientToSend(
 			continue
 		}
 		clients = append(clients, cl)
+		// calculate average processing time per message in the group
 		if cl.avgProcessingTimePerMsg != 0 {
 			groupAvgProcessingTimePerMsg += cl.avgProcessingTimePerMsg
 			clientCnt++
 		}
 	}
-	groupAvgProcessingTimePerMsg /= float64(clientCnt)
-	selectedClient, err := selectFn(topicFiter, clients, groupAvgProcessingTimePerMsg)
+	if clientCnt != 0 {
+		groupAvgProcessingTimePerMsg /= float64(clientCnt)
+	}
+	selectedClient, err := algo.selectClientToSend(topicFiter, clients, groupAvgProcessingTimePerMsg)
 	if err != nil {
 		return "", err
 	}
@@ -94,7 +92,7 @@ func (cls *Clients) SelectClientToSend(
 	// update client info
 	selectedClient.Lock()
 	defer selectedClient.Unlock()
-	err = updateFn(selectedClient)
+	err = algo.updateClientInfoAfterSending(selectedClient)
 	if err != nil {
 		return "", err
 	}
@@ -155,6 +153,8 @@ func NewClient(clientId string) *Client {
 		numberOfMsgsInQueue:     0,
 		avgProcessingTimePerMsg: 0, // milliseconds
 		sentMessageCount:        0,
+		lastSentTimeNano:        time.Now().UnixNano(),
+		lastUpdateTimeNano:      time.Now().UnixNano(),
 	}
 }
 
