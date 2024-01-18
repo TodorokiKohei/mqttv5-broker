@@ -68,14 +68,14 @@ func main() {
 		log.Fatal("invalid algorithm")
 	}
 
-	// Create a shared subscription manager
+	// Create a shared subscription lb
 	opts := sharedsub.Options{
 		Algorithm: algo,
 		Log:       logger,
 		DirName:   dirName,
 	}
-	manager := sharedsub.NewManager(opts)
-	hook := sharedsub.NewHook(manager, logger)
+	lb := sharedsub.NewLoadBalancer(opts)
+	hook := sharedsub.NewHook(lb, logger)
 	_ = server.AddHook(hook, nil)
 
 	// Add listeners
@@ -97,7 +97,7 @@ func main() {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		err := manager.StartRecording(ctx, wg)
+		err := lb.StartRecording(ctx, wg)
 		if err != nil {
 			log.Fatal(err)
 		}

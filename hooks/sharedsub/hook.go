@@ -13,15 +13,15 @@ import (
 )
 
 type Hook struct {
-	manager *Manager
-	log     *slog.Logger
 	mqtt.HookBase
+	lb  *LoadBalancer
+	log *slog.Logger
 }
 
-func NewHook(manager *Manager, logger *slog.Logger) *Hook {
+func NewHook(lb *LoadBalancer, logger *slog.Logger) *Hook {
 	hook := &Hook{
-		manager: manager,
-		log:     logger,
+		lb:  lb,
+		log: logger,
 	}
 	if hook.log == nil {
 		hook.log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -30,7 +30,7 @@ func NewHook(manager *Manager, logger *slog.Logger) *Hook {
 }
 
 func (h *Hook) ID() string {
-	return "pingreq-hook"
+	return "shared-subscription-hook"
 }
 
 func (h *Hook) Provides(b byte) bool {
@@ -39,17 +39,16 @@ func (h *Hook) Provides(b byte) bool {
 		mqtt.OnPacketRead,
 		mqtt.OnSelectSubscribers,
 		mqtt.OnDisconnect,
-		mqtt.OnPacketSent,
 	}, []byte{b})
 }
 
 func (h *Hook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) {
-	h.manager.UpdateClient(cl)
+	h.lb.UpdateClient(cl)
 }
 
 func (h *Hook) OnPacketRead(cl *mqtt.Client, pk packets.Packet) (packets.Packet, error) {
 	if pk.FixedHeader.Type == packets.Pingreq && pk.Payload != nil {
-		err := h.manager.UpdateClientInfo(cl, pk)
+		err := h.lb.UpdateClientInfo(cl, pk)
 		if err != nil {
 			return pk, err
 		}
@@ -61,14 +60,14 @@ func (h *Hook) OnPacketRead(cl *mqtt.Client, pk packets.Packet) (packets.Packet,
 }
 
 func (h *Hook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
-	h.manager.DeleteClient(cl)
+	h.lb.DeleteClient(cl)
 }
 
 func (h *Hook) OnSelectSubscribers(subs *mqtt.Subscribers, pk packets.Packet) *mqtt.Subscribers {
 	subs.SharedSelected = map[string]packets.Subscription{} // clientID and Subscription of the client.
 	for topicFilter, groupSubs := range subs.Shared {
-		// Select subscriber with information retained by the manager.
-		selClientId, err := h.manager.SelectSubscriber(topicFilter, groupSubs, pk)
+		// Select subscriber with information retained by the lb.
+		selClientId, err := h.lb.SelectSubscriber(topicFilter, groupSubs, pk)
 
 		if err != nil {
 			// Use standard function implemented by server.
@@ -86,11 +85,4 @@ func (h *Hook) OnSelectSubscribers(subs *mqtt.Subscribers, pk packets.Packet) *m
 		subs.SharedSelected[selClientId] = oldSub.Merge(groupSubs[selClientId])
 	}
 	return subs
-}
-
-func (h *Hook) OnPacketSent(cl *mqtt.Client, pk packets.Packet, b []byte) {
-	if pk.FixedHeader.Type == packets.Publish {
-		hash := sha256.Sum256(pk.Payload)
-		h.log.Debug("sent PUBLISH packet in hooks", "method", "OnPacketSent", "kind", "sentPUBLISH", "sentTime", time.Now().UnixMilli(), "hash", hex.EncodeToString(hash[:]))
-	}
 }

@@ -43,7 +43,7 @@ type Algorithm interface {
 	updater
 }
 
-type Manager struct {
+type LoadBalancer struct {
 	algorithm Algorithm
 	clients   *Clients
 	log       *slog.Logger
@@ -56,8 +56,8 @@ type Options struct {
 	DirName   string
 }
 
-func NewManager(options Options) *Manager {
-	m := &Manager{
+func NewLoadBalancer(options Options) *LoadBalancer {
+	m := &LoadBalancer{
 		clients:   NewClients(),
 		algorithm: options.Algorithm,
 		log:       options.Log,
@@ -67,24 +67,24 @@ func NewManager(options Options) *Manager {
 	if m.log == nil {
 		m.log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	}
-	m.log.Info("Create Manager", "Algorithm", fmt.Sprintf("%#v\n", options.Algorithm))
+	m.log.Info("Create LoadBalancer", "Algorithm", fmt.Sprintf("%#v\n", options.Algorithm))
 	return m
 }
 
 // UpdateClient updates the client.
-func (m *Manager) UpdateClient(cl *mqtt.Client) {
+func (m *LoadBalancer) UpdateClient(cl *mqtt.Client) {
 	m.clients.AddClient(cl.ID)
 	m.log.Info("update client", "method", "UpdateClient", "clientID", cl.ID)
 }
 
 // DeleteClient deletes the client.
-func (m *Manager) DeleteClient(cl *mqtt.Client) {
+func (m *LoadBalancer) DeleteClient(cl *mqtt.Client) {
 	m.clients.DeleteClient(cl.ID)
 	m.log.Info("delete client", "method", "DeleteClient", "clientID", cl.ID)
 }
 
 // UpdateClientInfo updates a client's information with updater.
-func (m *Manager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
+func (m *LoadBalancer) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
 	p := Payload{}
 	err := json.Unmarshal(pk.Payload, &p)
 	if err != nil {
@@ -102,7 +102,7 @@ func (m *Manager) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
 }
 
 // SelectSubscriber selects a subscriber with selector.
-func (m *Manager) SelectSubscriber(
+func (m *LoadBalancer) SelectSubscriber(
 	topicFilter string,
 	groupSubs map[string]packets.Subscription,
 	pk packets.Packet,
@@ -124,7 +124,7 @@ func (m *Manager) SelectSubscriber(
 }
 
 // StartRecording writes client status to csv file every second.
-func (m *Manager) StartRecording(ctx context.Context, wg *sync.WaitGroup) error {
+func (m *LoadBalancer) StartRecording(ctx context.Context, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	// write client status to csv file every second
