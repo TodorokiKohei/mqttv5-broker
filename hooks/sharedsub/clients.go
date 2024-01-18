@@ -36,7 +36,7 @@ func (cls *Clients) DeleteClient(clientId string) {
 	delete(cls.clients, clientId)
 }
 
-func (cls *Clients) UpdateClientInfoWithPayload(
+func (cls *Clients) UpdateClientWithPingreq(
 	clientId string,
 	p Payload,
 	algo Algorithm,

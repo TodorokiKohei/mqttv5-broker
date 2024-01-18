@@ -2,14 +2,10 @@ package sharedsub
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
-	"os"
-	"time"
-
 	"log/slog"
+	"os"
 )
 
 type Hook struct {
@@ -43,18 +39,15 @@ func (h *Hook) Provides(b byte) bool {
 }
 
 func (h *Hook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) {
-	h.lb.UpdateClient(cl)
+	h.lb.CreateClient(cl)
 }
 
 func (h *Hook) OnPacketRead(cl *mqtt.Client, pk packets.Packet) (packets.Packet, error) {
 	if pk.FixedHeader.Type == packets.Pingreq && pk.Payload != nil {
-		err := h.lb.UpdateClientInfo(cl, pk)
+		err := h.lb.UpdateClientWithPingreq(cl, pk)
 		if err != nil {
 			return pk, err
 		}
-	} else if pk.FixedHeader.Type == packets.Publish {
-		hash := sha256.Sum256(pk.Payload)
-		h.log.Debug("read PUBLISH packet in hook", "method", "OnPacketRead", "kind", "readPUBLISH", "readTime", time.Now().UnixMilli(), "hash", hex.EncodeToString(hash[:]))
 	}
 	return pk, nil
 }
@@ -64,15 +57,18 @@ func (h *Hook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
 }
 
 func (h *Hook) OnSelectSubscribers(subs *mqtt.Subscribers, pk packets.Packet) *mqtt.Subscribers {
-	subs.SharedSelected = map[string]packets.Subscription{} // clientID and Subscription of the client.
-	for topicFilter, groupSubs := range subs.Shared {
-		// Select subscriber with information retained by the lb.
-		selClientId, err := h.lb.SelectSubscriber(topicFilter, groupSubs, pk)
+	// Initialize subscribers selected by shared subscriptions.
+	subs.SharedSelected = map[string]packets.Subscription{}
 
+	// Select a subscriber for shared subscriptions.
+	for topicFilter, groupSubs := range subs.Shared {
+
+		// Select subscriber by the Load Balancer.
+		selClientId, err := h.lb.SelectSubscriber(topicFilter, groupSubs, pk)
 		if err != nil {
-			// Use standard function implemented by server.
-			subs.SharedSelected = map[string]packets.Subscription{}
-			return subs
+			h.log.Error("An error occurred in the algorithm for selecting subscribers.",
+				"method", "OnSelectSubscribers")
+			return nil
 		}
 
 		// Update subscription.

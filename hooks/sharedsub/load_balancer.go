@@ -57,80 +57,78 @@ type Options struct {
 }
 
 func NewLoadBalancer(options Options) *LoadBalancer {
-	m := &LoadBalancer{
+	lb := &LoadBalancer{
 		clients:   NewClients(),
 		algorithm: options.Algorithm,
 		log:       options.Log,
 		dirName:   options.DirName,
 	}
 
-	if m.log == nil {
-		m.log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	if lb.log == nil {
+		lb.log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	}
-	m.log.Info("Create LoadBalancer", "Algorithm", fmt.Sprintf("%#v\n", options.Algorithm))
-	return m
+	lb.log.Info("Create LoadBalancer", "Algorithm", fmt.Sprintf("%#v\n", options.Algorithm))
+	return lb
 }
 
-// UpdateClient updates the client.
-func (m *LoadBalancer) UpdateClient(cl *mqtt.Client) {
-	m.clients.AddClient(cl.ID)
-	m.log.Info("update client", "method", "UpdateClient", "clientID", cl.ID)
+// CreateClient creates new client.
+func (lb *LoadBalancer) CreateClient(cl *mqtt.Client) {
+	lb.clients.AddClient(cl.ID)
+	lb.log.Info("create new client", "method", "CreateClient", "clientID", cl.ID)
 }
 
-// DeleteClient deletes the client.
-func (m *LoadBalancer) DeleteClient(cl *mqtt.Client) {
-	m.clients.DeleteClient(cl.ID)
-	m.log.Info("delete client", "method", "DeleteClient", "clientID", cl.ID)
+// DeleteClient deletes disconnected client.
+func (lb *LoadBalancer) DeleteClient(cl *mqtt.Client) {
+	lb.clients.DeleteClient(cl.ID)
+	lb.log.Info("delete client", "method", "DeleteClient", "clientID", cl.ID)
 }
 
-// UpdateClientInfo updates a client's information with updater.
-func (m *LoadBalancer) UpdateClientInfo(cl *mqtt.Client, pk packets.Packet) error {
+func (lb *LoadBalancer) UpdateClientWithPingreq(cl *mqtt.Client, pk packets.Packet) error {
 	p := Payload{}
 	err := json.Unmarshal(pk.Payload, &p)
 	if err != nil {
 		return err
 	}
 
-	err = m.clients.UpdateClientInfoWithPayload(cl.ID, p, m.algorithm)
+	err = lb.clients.UpdateClientWithPingreq(cl.ID, p, lb.algorithm)
 	if err != nil {
 		return err
 	}
-	m.log.Info("update client info with PINGREQ",
-		"method", "UpdateClientInfo", "clientID", cl.ID,
+	lb.log.Info("update client with PINGREQ",
+		"method", "UpdateClientWithPingreq", "clientID", cl.ID,
 		"NumberOfMsgsInQueue", p.NumberOfMsgsInQueue, "ProcessingTimePerMsg", p.ProcessingTimePerMsg, "now", time.Now().UnixNano())
 	return nil
 }
 
-// SelectSubscriber selects a subscriber with selector.
-func (m *LoadBalancer) SelectSubscriber(
+func (lb *LoadBalancer) SelectSubscriber(
 	topicFilter string,
 	groupSubs map[string]packets.Subscription,
 	pk packets.Packet,
 ) (string, error) {
 
-	selectedClientId, err := m.clients.SelectClientToSend(
+	selectedClientId, err := lb.clients.SelectClientToSend(
 		topicFilter,
 		groupSubs,
-		m.algorithm,
+		lb.algorithm,
 	)
 
 	if err != nil {
-		m.log.Error(fmt.Sprintf("failed to select subscriber: %s", topicFilter))
+		lb.log.Error(fmt.Sprintf("failed to select subscriber: %s", topicFilter))
 		return "", err
 	}
 
-	m.log.Info(fmt.Sprintf("select subscriber: %s", selectedClientId), "topic", topicFilter)
+	lb.log.Info(fmt.Sprintf("select subscriber: %s", selectedClientId), "topic", topicFilter)
 	return selectedClientId, nil
 }
 
 // StartRecording writes client status to csv file every second.
-func (m *LoadBalancer) StartRecording(ctx context.Context, wg *sync.WaitGroup) error {
+func (lb *LoadBalancer) StartRecording(ctx context.Context, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
 	// write client status to csv file every second
-	fileName := filepath.Join(m.dirName, "client_status.csv")
-	if err := m.clients.Recording(ctx, fileName); err != nil {
-		m.log.Error("failed to write csv", err)
+	fileName := filepath.Join(lb.dirName, "client_status.csv")
+	if err := lb.clients.Recording(ctx, fileName); err != nil {
+		lb.log.Error("failed to write csv", err)
 		return err
 	}
 	return nil
