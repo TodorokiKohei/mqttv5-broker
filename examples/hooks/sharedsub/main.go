@@ -6,6 +6,7 @@ import (
 	"github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/hooks/auth"
 	"github.com/mochi-mqtt/server/v2/hooks/sharedsub"
+	"github.com/mochi-mqtt/server/v2/hooks/sharedsub/algorithms"
 	"github.com/mochi-mqtt/server/v2/listeners"
 	"log"
 	"log/slog"
@@ -55,15 +56,15 @@ func main() {
 	_ = server.AddHook(new(auth.AllowHook), nil)
 
 	var algo sharedsub.Algorithm
-	if *algoFlg == "score" {
-		algo = sharedsub.NewScoreAlgorithm(logger)
-		log.Println("selected score algorithm")
-	} else if *algoFlg == "random" {
-		algo = sharedsub.NewRandomAlgorithm()
+	if *algoFlg == "random" {
+		algo = algorithms.NewRandomAlgorithm()
 		log.Println("selected random algorithm")
 	} else if *algoFlg == "round" {
-		algo = sharedsub.NewRoundRobinAlgorithm()
+		algo = algorithms.NewRoundRobinAlgorithm()
 		log.Println("selected round robin algorithm")
+	} else if *algoFlg == "score" {
+		algo = algorithms.NewScoreAlgorithm(logger)
+		log.Println("selected score algorithm")
 	} else {
 		log.Fatal("invalid algorithm")
 	}

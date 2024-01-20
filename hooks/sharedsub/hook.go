@@ -39,7 +39,7 @@ func (h *Hook) Provides(b byte) bool {
 }
 
 func (h *Hook) OnSessionEstablished(cl *mqtt.Client, pk packets.Packet) {
-	h.lb.CreateClient(cl)
+	h.lb.AddClient(cl, pk)
 }
 
 func (h *Hook) OnPacketRead(cl *mqtt.Client, pk packets.Packet) (packets.Packet, error) {
@@ -53,32 +53,10 @@ func (h *Hook) OnPacketRead(cl *mqtt.Client, pk packets.Packet) (packets.Packet,
 }
 
 func (h *Hook) OnDisconnect(cl *mqtt.Client, err error, expire bool) {
-	h.lb.DeleteClient(cl)
+	h.lb.RemoveClient(cl)
 }
 
 func (h *Hook) OnSelectSubscribers(subs *mqtt.Subscribers, pk packets.Packet) *mqtt.Subscribers {
-	// Initialize subscribers selected by shared subscriptions.
-	subs.SharedSelected = map[string]packets.Subscription{}
-
-	// Select a subscriber for shared subscriptions.
-	for topicFilter, groupSubs := range subs.Shared {
-
-		// Select subscriber by the Load Balancer.
-		selClientId, err := h.lb.SelectSubscriber(topicFilter, groupSubs, pk)
-		if err != nil {
-			h.log.Error("An error occurred in the algorithm for selecting subscribers.",
-				"method", "OnSelectSubscribers")
-			return nil
-		}
-
-		// Update subscription.
-		// If the same subscriber is matched, the QoS delivered to the subscriber is adjusted to the value
-		// of the largest QoS among the matched topics.
-		oldSub, ok := subs.SharedSelected[selClientId]
-		if !ok {
-			oldSub = groupSubs[selClientId]
-		}
-		subs.SharedSelected[selClientId] = oldSub.Merge(groupSubs[selClientId])
-	}
+	subs.SharedSelected, _ = h.lb.SelectSharedSubscriptionSubscriber(subs.Shared, pk)
 	return subs
 }
