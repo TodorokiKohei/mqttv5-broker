@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -50,13 +51,19 @@ func NewLoadBalancer(options Options) *LoadBalancer {
 }
 
 func (lb *LoadBalancer) AddClient(cl *mqtt.Client, pk packets.Packet) {
-	lb.algorithm.AddClient(cl.ID, pk)
-	lb.log.Info("create new client", "method", "CreateClient", "clientID", cl.ID)
+	// add client if id contains "sub"
+	if isSub := strings.Contains(strings.ToUpper(cl.ID), "SUB"); isSub {
+		lb.algorithm.AddClient(cl.ID, pk)
+		lb.log.Info("create new client", "method", "CreateClient", "clientID", cl.ID)
+	}
 }
 
 func (lb *LoadBalancer) RemoveClient(cl *mqtt.Client) {
-	lb.algorithm.RemoveClient(cl.ID)
-	lb.log.Info("remove client", "method", "DeleteClient", "clientID", cl.ID)
+	// remove client if id contains "sub"
+	if isSub := strings.Contains(strings.ToUpper(cl.ID), "SUB"); isSub {
+		lb.algorithm.RemoveClient(cl.ID)
+		lb.log.Info("remove client", "method", "DeleteClient", "clientID", cl.ID)
+	}
 }
 
 func (lb *LoadBalancer) UpdateClientWithPingreq(cl *mqtt.Client, pk packets.Packet) error {

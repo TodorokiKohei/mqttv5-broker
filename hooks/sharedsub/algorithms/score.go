@@ -146,7 +146,7 @@ func (sa *ScoreAlgorithm) SelectClientToSend(topicFilter string, groupSubs map[s
 			maxScore = score
 		}
 
-		sa.log.Info(fmt.Sprintf("The %s's score is %d", cl.id, score), "method", "SelectClientToSend")
+		sa.log.Debug(fmt.Sprintf("The %s's score is %d", cl.id, score), "method", "SelectClientToSend")
 	}
 
 	if selClient == nil {
