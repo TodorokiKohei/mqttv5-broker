@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
-	"time"
 )
 
 func main() {
@@ -34,8 +33,9 @@ func main() {
 	}()
 
 	// Create a directory for the results
-	timeString := time.Now().Format("20060102_150405")
-	dirName := filepath.Join("results", timeString)
+	//timeString := time.Now().Format("20060102_150405")
+	//dirName := filepath.Join("results", timeString)
+	dirName := "results"
 	err := os.MkdirAll(dirName, 0755)
 	if err != nil {
 		log.Fatal(err)

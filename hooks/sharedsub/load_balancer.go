@@ -99,7 +99,7 @@ func (lb *LoadBalancer) SelectSharedSubscriptionSubscriber(shared map[string]map
 			oldSub = groupSubs[selClientId]
 		}
 		sharedSelected[selClientId] = oldSub.Merge(groupSubs[selClientId])
-		lb.log.Info("select client", "method", "OnSelectSubscribers", "subscriber", selClientId)
+		lb.log.Debug("select client", "method", "OnSelectSubscribers", "subscriber", selClientId)
 	}
 
 	return sharedSelected, nil
