@@ -1,8 +1,8 @@
 {
-    "family": "mqtt-broker",
+    "family": "broker",
     "containerDefinitions": [
         {
-            "name": "broker",
+            "name": "sharedsub",
             "image": "924899176789.dkr.ecr.ap-northeast-1.amazonaws.com/sharedsub:latest",
             "cpu": 0,
             "portMappings": [
