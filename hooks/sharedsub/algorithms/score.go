@@ -53,7 +53,7 @@ func (sa *ScoreAlgorithm) AddClient(clientID string, _ packets.Packet) {
 	defer sa.Unlock()
 	sa.clients[clientID] = &scoreClient{
 		id:                      clientID,
-		receivedPayload:         make([]Payload, 0, defaultRetainedSize),
+		receivedPayload:         make([]Payload, 0),
 		avgProcessingTimePerMsg: 0,
 		numberOfMsgsInQueue:     0,
 		numberOfMsgsInProgress:  0,

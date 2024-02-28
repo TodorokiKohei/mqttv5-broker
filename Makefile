@@ -17,12 +17,10 @@ EC2_INSTANCE_TYPE := c5.2xlarge
 EC2_AMI_ID := ami-0a3cde619b563ae0f
 EC2_KEY_NAME := todoroki-aws-lab
 
-
 # AWS ECS パラメータ
 ECS_CLUSTER_NAME := IoTSimulator
 ECS_SERVICE_NAME := broker
 TASK_DEFINITION_ARN = $(shell aws ecs list-task-definitions --family-prefix "broker" --status ACTIVE --query "taskDefinitionArns[-1]" --output text)
-DESIRED_COUNT := 1
 
 # AWS Cloud Map パラメータ
 SERVICE_DISCOVERY_NAMESPACE_NAME := iot-simulator
@@ -30,6 +28,11 @@ SERVICE_DISCOVERY_NAMESPACE_ID = $(shell aws servicediscovery list-namespaces --
 SERVICE_DISCOVERY_SERVICE_NAME := broker
 SERVICE_DISCOVERY_SERVICE_ID = $(shell aws servicediscovery list-services --query "Services[?Name=='${ECS_SERVICE_NAME}'].Id" --output text | tr -d '\n')
 SERVICE_DISCOVERY_SERVICE_ARN = $(shell aws servicediscovery list-services --query "Services[?Name=='${ECS_SERVICE_NAME}'].Arn" --output text | tr -d '\n')
+
+# 実行環境パラメータ
+SSH_USER := ec2-user
+SSH_KEY := ${HOME}/.ssh/todoroki-aws-lab.pem
+OUTPUT_DIR := ${HOME}/mqttv5-aws/broker
 
 
 # Docker
@@ -94,12 +97,12 @@ register-task:
 
 start-service:
 	aws ecs create-service --cluster ${ECS_CLUSTER_NAME} --service-name ${ECS_SERVICE_NAME} --task-definition ${TASK_DEFINITION_ARN} \
-		--desired-count ${DESIRED_COUNT} \
+		--desired-count 1 \
 		--network-configuration "awsvpcConfiguration={subnets=${SUBNET_ID},securityGroups=${SECURITY_GROUP_ID}}" \
 		--service-registries registryArn=$(SERVICE_DISCOVERY_SERVICE_ARN) \
 		--launch-type EC2 --no-cli-pager
 	@echo "Waiting for service to be created"
-	@while [ `aws ecs describe-services --cluster ${ECS_CLUSTER_NAME} --services ${ECS_SERVICE_NAME} --query "services[0].runningCount"` -ne ${DESIRED_COUNT} ]; do sleep 5; done
+	@while [ `aws ecs describe-services --cluster ${ECS_CLUSTER_NAME} --services ${ECS_SERVICE_NAME} --query "services[0].runningCount"` -ne 1 ]; do sleep 5; done
 
 stop-service:
 	aws ecs update-service --cluster ${ECS_CLUSTER_NAME} --service ${ECS_SERVICE_NAME} --desired-count 0 --no-cli-pager
@@ -113,7 +116,7 @@ delete-service-discovery-service:
 delete-service-discovery-namespace:
 	aws servicediscovery delete-namespace --id ${SERVICE_DISCOVERY_NAMESPACE_ID} --query "OperationId" --output text --no-cli-pager > /tmp/operation-id
 	@echo "Waiting for namespace to be deleted.."
-	@while [ `aws servicediscovery get-operation --operation-id $$(cat /tmp/operation-id) --query "Operation.Status" --output text` = "SUCCESS" ]; do sleep 5; done
+	@while [ `aws servicediscovery get-operation --operation-id $$(cat /tmp/operation-id) --query "Operation.Status" --output text` = "SUCCESS" ]; do sleep 10; done
 	@rm /tmp/operation-id
 
 
@@ -129,7 +132,21 @@ teardown-ecs-service:
 	@$(MAKE) stop-service
 	@$(MAKE) delete-service-discovery-service
 	@$(MAKE) delete-service-discovery-namespace
+	@$(MAKE) get-service-results
 
+get-service-results:
+	$(eval TIMESTAMP := $(shell date "+%Y%m%d_%H%M%S"))
+	@aws ec2 describe-instances \
+		--query "Reservations[*].Instances[?State.Name=='running'].{IP:PublicIpAddress,Name:Tags[?Key=='Name'].Value | [0]}" \
+		--filters "Name=tag:Owner,Values=todoroki" "Name=tag:Name,Values=*Broker*" "Name=instance-state-name,Values=running" \
+		--output text | \
+	while read ip name ; do \
+		echo "IP: $$ip, Name: $$name" ; \
+		mkdir -p ${OUTPUT_DIR}/${TIMESTAMP}/$$name && \
+		scp -i ${SSH_KEY} -o StrictHostKeyChecking=no -r ${SSH_USER}@$$ip:/tmp/results/* ${OUTPUT_DIR}/${TIMESTAMP}/$$name && \
+		ssh -i ${SSH_KEY} -n ${SSH_USER}@$$ip "sudo rm -rf /tmp/results/*" ; \
+	done
+	@cp -r aws/* ${OUTPUT_DIR}/${TIMESTAMP}/
 #
 #echo:
 #	@cat aws/broker-task.json | \
