@@ -23,7 +23,7 @@
             "essential": true,
             "command": [
                 "-algo",
-                "score"
+                "round"
             ],
             "environment": [],
             "mountPoints": [
