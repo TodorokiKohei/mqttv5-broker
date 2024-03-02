@@ -1,0 +1,65 @@
+{
+    "family": "broker",
+    "containerDefinitions": [
+        {
+            "name": "sharedsub",
+            "image": "924899176789.dkr.ecr.ap-northeast-1.amazonaws.com/sharedsub:latest",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "name": "mqtt-port",
+                    "containerPort": 1883,
+                    "hostPort": 1883,
+                    "protocol": "tcp"
+                },
+                {
+                    "name": "status-port",
+                    "containerPort": 8080,
+                    "hostPort": 8080,
+                    "protocol": "tcp",
+                    "appProtocol": "http"
+                }
+            ],
+            "essential": true,
+            "command": [
+                "-algo",
+                "round"
+            ],
+            "environment": [],
+            "mountPoints": [
+                {
+                    "sourceVolume": "broker-volume",
+                    "containerPath": "/app/results",
+                    "readOnly": false
+                }
+            ],
+            "volumesFrom": [],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-create-group": "true",
+                    "awslogs-group": "/ecs/mqtt-broker",
+                    "awslogs-region": "ap-northeast-1",
+                    "awslogs-stream-prefix": "ecs"
+                },
+                "secretOptions": []
+            }
+        }
+    ],
+    "executionRoleArn": "arn:aws:iam::924899176789:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "volumes": [
+        {
+            "name": "broker-volume",
+            "host": {
+                "sourcePath": "/tmp/results"
+            }
+        }
+    ],
+    "cpu": "8192",
+    "memory": "15360",
+    "runtimePlatform": {
+        "cpuArchitecture": "X86_64",
+        "operatingSystemFamily": "LINUX"
+    }
+}
